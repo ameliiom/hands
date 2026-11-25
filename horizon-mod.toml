@@ -1,0 +1,14 @@
+id = "hands"
+name = "Hands"
+version = "0.1.0"
+description = "Hit a block and the right tool comes to your hand, use up a stack and the next comes from your inventory, break a tool and one like it takes its place."
+authors = ["ameliiom"]
+license = "MIT"
+api = "0.2"
+side = "both"
+capabilities = ["registries"]
+
+[native]
+game = "26.3"
+horizon = "f037744a79f9982c47876f49c5a3067279f88706"
+mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
