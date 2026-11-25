@@ -79,7 +79,56 @@ A second swap keeps the first slot; a slot the player picks themself ends it.
 | Obsidian (194 ticks with a diamond pickaxe) | dug to the end with the pickaxe, then dirt back |
 | Swapped, then the player picked slot 5 | slot 5 stayed |
 
-## 8. Risks and answers
+## 8. Comforts earned in the Skills tree Hands (0.3.0), measured in the game (2026-11-26)
+
+Three comforts from batch 2, each off until earned and each with its own off switch (Options >
+Mods > Hands > Config; `all_comforts` opens them without Skills). As with Gathering and Storage
+there is no code tie: a node gives a vanilla tag (`hands.eat.14`, `hands.eat.17`, `hands.torch`,
+`hands.marks`), the tree is a data file Skills reads (`data/hands/skills/hands.json`).
+
+![The Hands tree](tree.png)
+
+| Row | Nodes |
+|---|---|
+| Survival | **Snack I** (eat below 14) → **Snack II** (eat below 17) |
+| Caves | **Torch Hand** → **Spawn Marks** |
+
+The tree earns from pickaxe and shovel use and torches placed (`minecraft:used`).
+
+- **Eat on its own**: each server tick reads the food level (`food_level_changed` is never sent
+  for the host of a LAN world, the owner); below the line, the food that fills the most of what is
+  missing and wastes the least is eaten (`feed`, the stack shrinks first). Never eaten: rotten
+  flesh, spider eye, poisonous potato, pufferfish, raw chicken, golden apples, suspicious stew,
+  chorus fruit, and any food with an effect on eating or a bowl or bottle left behind.
+- **Torch Hand**: `use_item_on_block` in its `ItemAfterBlock` phase, so a block's own use wins
+  (a chest or door opens as always); a pickaxe or shovel on a floor or wall whose spot is dark
+  (no block light, sky light after the time's darkening at most 7) places a torch or wall torch
+  from the inventory (main inventory first, the smallest stack), checked with `may_use_item_at`
+  and face support; creative pays nothing; never on a ceiling.
+- **Spawn Marks**: the client, while a torch is in either hand, puts a small red cross on every
+  opaque full block within 16 blocks (8 up and down) with two airs above and monster darkness.
+  Found again only when the player moves a block, the sky's darkening changes, or a block or light
+  packet arrives (2 and 12 ticks later, after the client's own light update); each frame only
+  draws. The server tells each client whether it earned them (`hands:marks`).
+
+| Case (dark stone rooms at y 100, survival) | Result |
+|---|---|
+| Snack I, hunger draining, 3 steaks, 5 bread, rotten flesh, golden apples | steak at 13 (to 20) three times, then bread at 13 (to 18) five times; rotten flesh and golden apples never eaten, even starving |
+| Snack II | ate as the bar fell past 17 |
+| Torch Hand, diamond pickaxe on a dark wall | wall torch facing out, 16 torches → 15 |
+| Same on a dark floor / a ceiling / a lit wall | torch / nothing / nothing |
+| Right-click a chest with the pickaxe | the chest opened, no torch |
+| Torch switched off in the settings, dark wall | nothing; on again: torch |
+| No tags | no torch, no eating, no marks |
+| Spawn Marks, torch held in a 15×15 dark room | a red cross on every floor block |
+| A torch set in the room | the crosses around it gone at once; far corners keep theirs |
+| Pickaxe in hand, or marks switched off | no crosses |
+| Skills screen | the Hands tab with both rows; the bar filled from the test's digging and torches |
+
+![Spawn marks in a dark room](marks.png)
+![A torch clears the marks around it](marks-torch.png)
+
+## 9. Risks and answers
 
 | Risk | Answer |
 |---|---|
@@ -88,7 +137,11 @@ A second swap keeps the first slot; a slot the player picks themself ends it.
 | Refill on a drop | drops (`item_toss`) and inventory moves are told apart from use |
 | A favourite tool used up | a tool with one use left is never picked, and a broken one is replaced only by its own kind |
 | Silk Touch or Fortune wanted on purpose | the hand only changes when the held item is slower; a tool you chose that mines the block stays |
+| Eating something you meant to keep | golden apples and every food with an effect are never eaten; the switch turns it off |
+| A torch where you wanted a path (shovel on grass) | only on dark spots, where monsters would spawn anyway |
+| Marks cost frames | found only on a move or a world change (17 × 33 × 33 blocks), drawn as lines each frame |
 
-## 9. Phases
+## 10. Phases
 
 1. The right tool, back to what you held, refill, a new tool: all built in 0.2.0.
+2. Skills tree Hands with eat on its own, Torch Hand and Spawn Marks: built in 0.3.0.

@@ -39,7 +39,7 @@ fn uses(host: &dyn Host, stack: &ItemStack) -> Option<i64> {
     int("minecraft:max_damage").map(|max| max - int("minecraft:damage").unwrap_or(0))
 }
 
-fn tool_kind(host: &dyn Host, item: &str) -> Option<String> {
+pub(crate) fn tool_kind(host: &dyn Host, item: &str) -> Option<String> {
     let entry = host.registry_entry("minecraft:item", item)?;
     KINDS.into_iter().find(|k| host.registry_entry_in_tag(&entry, k).unwrap_or(false)).map(str::to_owned)
 }

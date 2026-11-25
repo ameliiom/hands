@@ -9,7 +9,17 @@ For [Horizon](https://playhorizon.dev) (Minecraft: Java Edition 26.3 in Rust). Y
 - **A new tool**: when a tool breaks, one like it from your inventory takes its slot (the same tool first, else one of its kind).
 - **Sneak** while hitting to keep what you hold.
 
-Works for everyone, the host of a LAN world too. Nothing to earn.
+These four work for everyone, the host of a LAN world too, with nothing to earn.
+
+## Comforts earned in the Skills tree Hands
+With [Skills](https://github.com/ameliiom/skills), the tab **Hands** (earned by digging with pickaxes and shovels and placing torches) unlocks:
+- **Snack I / II**: when hunger drops below 14 (then 17), you eat the best plain food from your inventory. Rotten flesh, spider eyes, poisonous potatoes, pufferfish, raw chicken, golden apples, suspicious stew and chorus fruit are never eaten.
+- **Torch Hand**: right-click a dark floor or wall with a pickaxe or shovel and a torch from your inventory goes there. Chests, doors and other blocks still open as always.
+- **Spawn Marks**: while you hold a torch, small red crosses show the blocks around you where monsters can spawn.
+
+![Spawn marks](docs/marks.png)
+
+Each can be switched off in Options > Mods > Hands > Config. Without Skills, the setting **All comforts without Skills** opens them all.
 
 ## Install
 1. Copy `hands.hmod` into `%APPDATA%\horizon\horizon-native-mods\`.

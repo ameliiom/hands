@@ -88,9 +88,194 @@ pub fn back_tick(b: Back, selected: usize, dug: bool) -> (Option<Back>, Option<u
     if quiet >= BACK_AFTER { (None, (b.to != b.from).then_some(b.to)) } else { (Some(Back { quiet, ..b }), None) }
 }
 
+/// Foods never eaten on their own: they hurt, poison, teleport, or are worth saving.
+pub const NOT_FOOD: [&str; 10] = [
+    "minecraft:rotten_flesh",
+    "minecraft:spider_eye",
+    "minecraft:poisonous_potato",
+    "minecraft:pufferfish",
+    "minecraft:golden_apple",
+    "minecraft:enchanted_golden_apple",
+    "minecraft:suspicious_stew",
+    "minecraft:chorus_fruit",
+    "minecraft:chicken",
+    "minecraft:honey_bottle",
+];
+
+/// An inventory stack that might be eaten.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Food {
+    pub slot: u32,
+    pub item: String,
+    pub nutrition: i32,
+    /// The saturation it gives (the food component's `saturation`).
+    pub saturation: f32,
+    /// It does something besides feeding (an effect on eating) or leaves something behind (a
+    /// bowl, a bottle): never eaten on its own.
+    pub extra: bool,
+}
+
+/// The food to eat now, if hunger is below `line`: the plain food that fills the most of what is
+/// missing, wasting the least, then the most saturation, then the lowest slot.
+pub fn pick_food(level: i32, line: i32, foods: &[Food]) -> Option<u32> {
+    if level >= line {
+        return None;
+    }
+    let need = 20 - level;
+    foods
+        .iter()
+        .filter(|f| f.nutrition > 0 && !f.extra && !NOT_FOOD.contains(&f.item.as_str()))
+        .max_by(|a, b| {
+            let key = |f: &Food| (f.nutrition.min(need), -(f.nutrition - need).max(0));
+            key(a).cmp(&key(b)).then(a.saturation.total_cmp(&b.saturation)).then(b.slot.cmp(&a.slot))
+        })
+        .map(|f| f.slot)
+}
+
+/// The vanilla feed call's saturation modifier for a food component (`saturation = nutrition ×
+/// modifier × 2`).
+pub fn saturation_modifier(nutrition: i32, saturation: f32) -> f32 {
+    if nutrition <= 0 { 0.0 } else { saturation / (2.0 * nutrition as f32) }
+}
+
+/// Ticks between two meals eaten on their own, so two bites never land in one tick.
+pub const EAT_EVERY: u32 = 10;
+
+/// Which torch a click on `face` (the clicked face's normal) places: on the floor, or on a wall
+/// facing out of it. None for a ceiling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TorchAt {
+    Floor,
+    /// `facing` is the wall torch's `facing` property.
+    Wall { facing: &'static str },
+}
+
+pub fn torch_at(face: [i32; 3]) -> Option<TorchAt> {
+    Some(match face {
+        [0, 1, 0] => TorchAt::Floor,
+        [0, 0, -1] => TorchAt::Wall { facing: "north" },
+        [0, 0, 1] => TorchAt::Wall { facing: "south" },
+        [-1, 0, 0] => TorchAt::Wall { facing: "west" },
+        [1, 0, 0] => TorchAt::Wall { facing: "east" },
+        _ => return None,
+    })
+}
+
+/// Whether a spot is dark enough for monsters: no block light, and the sky's light, after the
+/// time of day and weather took their share (`sky_darken`), at most 7.
+pub fn dark(block: i32, sky: i32, sky_darken: i32) -> bool {
+    block <= 0 && sky - sky_darken <= 7
+}
+
+/// The torch stack to pay with: from the main inventory before the hotbar, the smallest stack
+/// first (so stacks tidy up), then the highest slot.
+pub fn torch_from(stacks: &[(u32, u32)]) -> Option<u32> {
+    stacks.iter().min_by_key(|(slot, count)| (*slot < 9, *count, std::cmp::Reverse(*slot))).map(|(slot, _)| *slot)
+}
+
+/// How far around the player spawn spots are marked: 16 blocks across, 8 up and down.
+pub const MARK_REACH: i32 = 16;
+pub const MARK_HEIGHT: i32 = 8;
+
+/// A block as the marks see it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cell {
+    /// Air (and cave air): room for a monster.
+    Air,
+    /// An opaque full block a monster may stand on.
+    Floor,
+    /// Anything else.
+    Other,
+}
+
+/// The cells of a column (bottom up) that a monster may stand on: a floor with two airs above it.
+/// Returns the floor's index.
+pub fn spawn_floors(column: &[Cell]) -> impl Iterator<Item = usize> + '_ {
+    column.windows(3).enumerate().filter(|(_, w)| w == &[Cell::Floor, Cell::Air, Cell::Air]).map(|(i, _)| i)
+}
+
+/// Blocks with a full opaque top where monsters still never spawn.
+pub fn never_spawn_on(block: &str) -> bool {
+    matches!(block, "minecraft:bedrock" | "minecraft:barrier" | "minecraft:magma_block" | "minecraft:packed_ice" | "minecraft:blue_ice")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn f(slot: u32, item: &str, nutrition: i32, saturation: f32) -> Food {
+        Food { slot, item: format!("minecraft:{item}"), nutrition, saturation, extra: false }
+    }
+
+    #[test]
+    fn eats_only_below_the_line() {
+        let bag = [f(3, "bread", 5, 6.0)];
+        assert_eq!(pick_food(14, 14, &bag), None);
+        assert_eq!(pick_food(13, 14, &bag), Some(3));
+        assert_eq!(pick_food(16, 17, &bag), Some(3));
+        assert_eq!(pick_food(13, 0, &bag), None, "no comfort");
+    }
+
+    #[test]
+    fn the_food_that_fills_best_wins() {
+        let bag = [f(1, "cooked_beef", 8, 12.8), f(2, "bread", 5, 6.0), f(3, "carrot", 3, 3.6)];
+        // 7 missing: the steak fills 7, bread 5.
+        assert_eq!(pick_food(13, 14, &bag), Some(1));
+        // 4 missing: bread fills it wasting 1, the steak wastes 4.
+        assert_eq!(pick_food(16, 17, &bag), Some(2));
+        // Same fill and waste: more saturation.
+        let tie = [f(1, "baked_potato", 5, 6.0), f(2, "cooked_cod", 5, 6.0), f(4, "cooked_salmon", 6, 9.6)];
+        assert_eq!(pick_food(12, 14, &tie), Some(4));
+        assert_eq!(pick_food(12, 14, &tie[..2]), Some(1), "then the lowest slot");
+    }
+
+    #[test]
+    fn bad_and_precious_food_is_never_eaten() {
+        for bad in ["rotten_flesh", "spider_eye", "poisonous_potato", "pufferfish", "golden_apple", "enchanted_golden_apple", "suspicious_stew", "chorus_fruit"] {
+            assert_eq!(pick_food(2, 17, &[f(0, bad, 4, 2.0)]), None, "{bad}");
+        }
+        assert_eq!(pick_food(2, 17, &[Food { extra: true, ..f(0, "mushroom_stew", 6, 7.2) }]), None, "leaves a bowl");
+        assert_eq!(pick_food(2, 17, &[f(0, "rotten_flesh", 4, 0.8), f(7, "dried_kelp", 1, 0.6)]), Some(7));
+    }
+
+    #[test]
+    fn the_feed_modifier_gives_back_the_food_saturation() {
+        assert!((saturation_modifier(8, 12.8) - 0.8).abs() < 1e-6);
+        assert_eq!(saturation_modifier(0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn torches_go_on_floors_and_walls_never_ceilings() {
+        assert_eq!(torch_at([0, 1, 0]), Some(TorchAt::Floor));
+        assert_eq!(torch_at([0, -1, 0]), None);
+        assert_eq!(torch_at([0, 0, -1]), Some(TorchAt::Wall { facing: "north" }));
+        assert_eq!(torch_at([1, 0, 0]), Some(TorchAt::Wall { facing: "east" }));
+    }
+
+    #[test]
+    fn dark_is_monster_dark() {
+        assert!(dark(0, 0, 0), "a cave");
+        assert!(!dark(1, 0, 0), "a torch's light far off");
+        assert!(!dark(0, 15, 0), "noon outside");
+        assert!(dark(0, 15, 11), "midnight outside");
+        assert!(!dark(0, 15, 3), "an evening");
+    }
+
+    #[test]
+    fn torches_are_paid_from_the_inventory_first() {
+        assert_eq!(torch_from(&[(2, 64), (20, 30), (30, 5)]), Some(30));
+        assert_eq!(torch_from(&[(2, 64), (5, 3)]), Some(5));
+        assert_eq!(torch_from(&[]), None);
+    }
+
+    #[test]
+    fn a_spawn_floor_needs_two_airs_above() {
+        use Cell::*;
+        let col = [Floor, Air, Air, Floor, Air, Other, Floor, Air, Air, Air];
+        assert_eq!(spawn_floors(&col).collect::<Vec<_>>(), vec![0, 6]);
+        assert_eq!(spawn_floors(&[Floor, Air]).count(), 0, "the top of the scan");
+        assert!(never_spawn_on("minecraft:bedrock") && !never_spawn_on("minecraft:stone"));
+    }
 
     #[test]
     fn the_hand_goes_back_a_second_after_digging_stops() {
