@@ -199,9 +199,68 @@ pub fn never_spawn_on(block: &str) -> bool {
     matches!(block, "minecraft:bedrock" | "minecraft:barrier" | "minecraft:magma_block" | "minecraft:packed_ice" | "minecraft:blue_ice")
 }
 
+/// The upward speed that climbs as fast as the game does: the game climbs 0.115 blocks a tick
+/// (4.59 blocks in 2 s, measured), and a speed set from the server moves 0.89 of itself in the
+/// client's tick (0.3 → 0.268, 0.4 → 0.355, measured), so 0.129 is "1x".
+pub const GAME_CLIMB: f64 = 0.129;
+/// Looking at least this far up (degrees; the game's pitch is negative upward) counts as
+/// looking up.
+pub const LOOK_UP: f32 = 20.0;
+
+/// The upward speed to give a player this tick, if faster climbing applies: earned (`percent`
+/// over 100), on a ladder or vine, looking up, and already going up (`dy` since the last tick).
+pub fn climb_speed(percent: i32, climbing: bool, pitch: f32, dy: f64) -> Option<f64> {
+    (percent > 100 && climbing && pitch <= -LOOK_UP && dy > 0.01).then(|| GAME_CLIMB * f64::from(percent) / 100.0)
+}
+
+/// What a horse whistle calls: these, within this many blocks.
+pub const HORSES: [&str; 6] =
+    ["minecraft:horse", "minecraft:donkey", "minecraft:mule", "minecraft:skeleton_horse", "minecraft:zombie_horse", "minecraft:camel"];
+pub const WHISTLE_REACH: f64 = 128.0;
+
+/// A horse the player last rode, as the whistle sees it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Horse {
+    /// Squared distance to the player.
+    pub dist2: f64,
+    pub tamed: bool,
+    /// Someone sits on it.
+    pub ridden: bool,
+}
+
+/// The horse to call: tamed, nobody on it, within reach, the nearest.
+pub fn call_horse(horses: &[Horse]) -> Option<usize> {
+    horses
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| h.tamed && !h.ridden && h.dist2 <= WHISTLE_REACH * WHISTLE_REACH)
+        .min_by(|a, b| a.1.dist2.total_cmp(&b.1.dist2))
+        .map(|(i, _)| i)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn climbing_is_faster_only_up_a_ladder_looking_up() {
+        assert!(climb_speed(150, true, -45.0, 0.1).is_some_and(|v| (v - 0.1935).abs() < 1e-9));
+        assert!(climb_speed(200, true, -20.0, 0.1).is_some_and(|v| (v - 0.258).abs() < 1e-9));
+        assert_eq!(climb_speed(100, true, -45.0, 0.1), None, "not earned");
+        assert_eq!(climb_speed(200, false, -45.0, 0.1), None, "not on a ladder");
+        assert_eq!(climb_speed(200, true, 0.0, 0.1), None, "looking ahead");
+        assert_eq!(climb_speed(200, true, -45.0, -0.1), None, "going down");
+    }
+
+    #[test]
+    fn the_whistle_calls_the_nearest_free_tamed_horse_in_reach() {
+        let h = |d: f64, tamed, ridden| Horse { dist2: d * d, tamed, ridden };
+        assert_eq!(call_horse(&[h(50.0, true, false), h(20.0, true, false)]), Some(1));
+        assert_eq!(call_horse(&[h(20.0, true, true), h(50.0, true, false)]), Some(1), "a friend rides the near one");
+        assert_eq!(call_horse(&[h(20.0, false, false)]), None, "wild");
+        assert_eq!(call_horse(&[h(129.0, true, false)]), None, "too far");
+        assert_eq!(call_horse(&[]), None);
+    }
 
     fn f(slot: u32, item: &str, nutrition: i32, saturation: f32) -> Food {
         Food { slot, item: format!("minecraft:{item}"), nutrition, saturation, extra: false }

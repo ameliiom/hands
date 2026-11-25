@@ -1,6 +1,7 @@
 //! Hands: hit a block and the hotbar's best tool comes to your hand, use up a stack and the next
 //! comes from your inventory, break a tool and one like it takes its place; and comforts earned
-//! in the Skills tree Hands (eat on its own, a torch on a right-click, spawn marks). See
+//! in the Skills tree Hands (eat on its own, a torch on a right-click, spawn marks, quick climb,
+//! horse whistle). See
 //! `docs/design.md`.
 //!
 //! - **The decisions** (`rules.rs`): which slot mines best, whether a hand emptied by use, which
@@ -19,7 +20,7 @@ mod server;
 use mod_api::{
     ClientHost, ClientLevelUnloadEvent, ClientPacketEvent, ClientTickPostEvent, Flow, Hooks, HostSide, IPayloadContext, InteractionResult,
     ItemTossEvent, LeftClickBlockEvent, PayloadId, PlayerBreakSpeedEvent, PlayerLoggedOutEvent, Registrar, RegistrationContext,
-    RenderLevelStageEvent, ServerHost, ServerTickEvent, ServerTickPhase, SettingSpec, UseItemOnBlockEvent, UsePhase,
+    RenderLevelStageEvent, RightClickItemEvent, ServerHost, ServerTickEvent, ServerTickPhase, SettingSpec, UseItemOnBlockEvent, UsePhase,
 };
 #[allow(unused_imports)]
 use mod_api::prelude::*;
@@ -69,6 +70,14 @@ impl Hooks for Mod {
         {
             *event.cancellation_result = InteractionResult::SuccessServer;
             return Flow::Cancel;
+        }
+        Flow::Continue
+    }
+
+    /// A goat horn blown while sneaking calls the last ridden horse; the horn sounds as always.
+    fn right_click_item(&self, host: HostSide, event: &mut RightClickItemEvent<'_>) -> Flow {
+        if let HostSide::Server(host) = host {
+            comforts::whistle(host, event.click.stack);
         }
         Flow::Continue
     }

@@ -8,7 +8,7 @@ use crate::perks::{Comforts, setting};
 use crate::rules::{self, Food, TorchAt};
 use crate::server::tool_kind;
 use mod_api::{
-    BlockClick, BlockFace, BlockMetadata, BlockState, ComponentId, GameMode, Host, HostBlockStates, ItemResource, ItemStack, PlayerRef,
+    BlockClick, BlockFace, EntityRef, BlockMetadata, BlockState, ComponentId, GameMode, Host, HostBlockStates, ItemResource, ItemStack, PlayerRef,
     ServerHost, SettingSpec, SettingValue, SoundSource, StatType, StateConstraint, Tag, VarInt,
 };
 #[allow(unused_imports)]
@@ -30,7 +30,7 @@ pub fn earned(host: &dyn Host, p: PlayerRef) -> Comforts {
 
 /// What a player has earned and not switched off.
 fn comforts(host: &dyn Host, p: PlayerRef) -> Comforts {
-    earned(host, p).switched(on(host, setting::EAT), on(host, setting::TORCH), on(host, setting::MARKS))
+    earned(host, p).switched(|key| on(host, key))
 }
 
 struct State {
@@ -38,9 +38,14 @@ struct State {
     since_meal: BTreeMap<u128, u32>,
     /// What each client was last told about the marks.
     told: BTreeMap<u128, bool>,
+    /// Each player's height on the last tick, to tell climbing up from down.
+    last_y: BTreeMap<u128, f64>,
+    /// The horse each player rides or last rode (entity id), tagged `hands.rider.<uuid>`.
+    rode: BTreeMap<u128, u32>,
 }
 
-static STATE: Mutex<State> = Mutex::new(State { since_meal: BTreeMap::new(), told: BTreeMap::new() });
+static STATE: Mutex<State> =
+    Mutex::new(State { since_meal: BTreeMap::new(), told: BTreeMap::new(), last_y: BTreeMap::new(), rode: BTreeMap::new() });
 
 fn with<R>(f: impl FnOnce(&mut State) -> R) -> R {
     f(&mut STATE.lock().unwrap_or_else(|e| e.into_inner()))
@@ -105,6 +110,87 @@ pub fn tick(host: &mut dyn ServerHost) {
         }
         let marks = earned(&*host, p).marks;
         tell(host, p, marks);
+        climb(host, p, c.climb);
+        remember_horse(host, p);
+    }
+}
+
+/// Faster climbing: while the player goes up a ladder or vine looking up, the server sets their
+/// upward speed (the client owns a player's motion and takes it from its next tick).
+fn climb(host: &mut dyn ServerHost, p: PlayerRef, percent: i32) {
+    let Some([_, y, _]) = p.entity().position(&*host) else { return };
+    let dy = with(|s| s.last_y.insert(p.uuid(), y)).map_or(0.0, |last| y - last);
+    if percent <= 100 {
+        return;
+    }
+    let climbing = host.living(p.entity()).and_then(|l| l.is_climbing(&*host)) == Some(true);
+    let pitch = p.entity().rotation(&*host).map_or(0.0, |[_, pitch]| pitch);
+    if let Some(up) = rules::climb_speed(percent, climbing, pitch, dy) {
+        p.set_velocity(host, [0.0, up, 0.0]);
+    }
+}
+
+fn rider_tag(player: u128) -> String {
+    format!("hands.rider.{player:032x}")
+}
+
+fn kind(host: &dyn Host, e: EntityRef) -> String {
+    e.kind(host).map(|k| k.id(host)).unwrap_or_default()
+}
+
+/// The player's tagged horses within the whistle's reach.
+fn tagged_horses(host: &dyn Host, p: PlayerRef) -> Vec<EntityRef> {
+    let (Some(level), Some([x, y, z])) = (p.level(host), p.entity().position(host)) else { return Vec::new() };
+    let r = rules::WHISTLE_REACH;
+    let tag = rider_tag(p.uuid());
+    level
+        .entities_in(host, [x - r, y - r, z - r], [x + r, y + r, z + r])
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|e| rules::HORSES.contains(&kind(host, *e).as_str()) && e.tags(host).unwrap_or_default().contains(&tag))
+        .collect()
+}
+
+/// A player on a horse: that horse becomes the one their whistle calls (its tag survives a
+/// restart; the tag leaves the horses they rode before).
+fn remember_horse(host: &mut dyn ServerHost, p: PlayerRef) {
+    let Some(horse) = p.entity().vehicle(&*host) else { return };
+    if with(|s| s.rode.get(&p.uuid()) == Some(&horse.id())) || !rules::HORSES.contains(&kind(&*host, horse).as_str()) {
+        return;
+    }
+    let tag = rider_tag(p.uuid());
+    for old in tagged_horses(&*host, p) {
+        if old.id() != horse.id() {
+            old.remove_tag(host, &tag);
+        }
+    }
+    if horse.add_tag(host, &tag) {
+        with(|s| s.rode.insert(p.uuid(), horse.id()));
+    }
+}
+
+/// A goat horn blown while sneaking: the last ridden horse, if tamed, free and within 128 blocks
+/// in this world, comes to the player. The horn sounds as always.
+pub fn whistle(host: &mut dyn ServerHost, stack: &ItemStack) {
+    let Some(p) = host.players().acting_player() else { return };
+    if stack.item().id(&*host) != "minecraft:goat_horn" || p.entity().is_crouching(&*host) != Some(true) || !comforts(&*host, p).whistle {
+        return;
+    }
+    let Some(at) = p.entity().position(&*host) else { return };
+    let horses = tagged_horses(&*host, p);
+    let seen: Vec<rules::Horse> = horses
+        .iter()
+        .map(|h| {
+            let pos = h.position(&*host).unwrap_or([f64::MAX; 3]);
+            rules::Horse {
+                dist2: (0..3).map(|i| (pos[i] - at[i]).powi(2)).sum(),
+                tamed: host.living(*h).and_then(|l| l.is_tamed(&*host)) == Some(true),
+                ridden: !h.passengers(&*host).unwrap_or_default().is_empty(),
+            }
+        })
+        .collect();
+    if let Some(i) = rules::call_horse(&seen) {
+        horses[i].teleport_to(host, at, None);
     }
 }
 
@@ -226,5 +312,7 @@ pub fn forget(player: u128) {
     with(|s| {
         s.since_meal.remove(&player);
         s.told.remove(&player);
+        s.last_y.remove(&player);
+        s.rode.remove(&player);
     });
 }

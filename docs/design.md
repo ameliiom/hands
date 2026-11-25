@@ -81,10 +81,10 @@ A second swap keeps the first slot; a slot the player picks themself ends it.
 
 ## 8. Comforts earned in the Skills tree Hands (0.3.0), measured in the game (2026-11-26)
 
-Three comforts from batch 2, each off until earned and each with its own off switch (Options >
+Three comforts from batch 2 and two from batch 3, each off until earned and each with its own off switch (Options >
 Mods > Hands > Config; `all_comforts` opens them without Skills). As with Gathering and Storage
 there is no code tie: a node gives a vanilla tag (`hands.eat.14`, `hands.eat.17`, `hands.torch`,
-`hands.marks`), the tree is a data file Skills reads (`data/hands/skills/hands.json`).
+`hands.marks`, `hands.climb.150`, `hands.climb.200`, `hands.whistle`), the tree is a data file Skills reads (`data/hands/skills/hands.json`).
 
 ![The Hands tree](tree.png)
 
@@ -92,8 +92,10 @@ there is no code tie: a node gives a vanilla tag (`hands.eat.14`, `hands.eat.17`
 |---|---|
 | Survival | **Snack I** (eat below 14) → **Snack II** (eat below 17) |
 | Caves | **Torch Hand** → **Spawn Marks** |
+| Travel | **Quick Climb I** (1.5x) → **Quick Climb II** (2x) → **Horse Whistle** |
 
-The tree earns from pickaxe and shovel use and torches placed (`minecraft:used`).
+The tree earns from pickaxe and shovel use, torches placed (`minecraft:used`), climbing and riding
+(`climb_one_cm`, `horse_one_cm`).
 
 - **Eat on its own**: each server tick reads the food level (`food_level_changed` is never sent
   for the host of a LAN world, the owner); below the line, the food that fills the most of what is
@@ -110,6 +112,15 @@ The tree earns from pickaxe and shovel use and torches placed (`minecraft:used`)
   Found again only when the player moves a block, the sky's darkening changes, or a block or light
   packet arrives (2 and 12 ticks later, after the client's own light update); each frame only
   draws. The server tells each client whether it earned them (`hands:marks`).
+- **Quick Climb**: each server tick, a player on a ladder or vine (`is_climbing`) looking up at
+  least 20° and already going up gets an upward speed (`PlayerRef::set_velocity`; the client owns
+  its motion and takes it from its next tick). The game climbs 0.115 blocks a tick and a speed sent
+  this way moves 0.89 of itself, so "1x" is 0.129 (measured, `rules::GAME_CLIMB`).
+- **Horse Whistle**: while a player rides a horse, donkey, mule, skeleton or zombie horse or
+  camel, it gets the tag `hands.rider.<uuid>` (kept over restarts; removed from the horses ridden
+  before). A goat horn blown while sneaking (`right_click_item`, the horn still sounds) brings the
+  nearest tagged, tamed horse with nobody on it within 128 blocks in the same world
+  (`teleport_to`).
 
 | Case (dark stone rooms at y 100, survival) | Result |
 |---|---|
@@ -123,7 +134,11 @@ The tree earns from pickaxe and shovel use and torches placed (`minecraft:used`)
 | Spawn Marks, torch held in a 15×15 dark room | a red cross on every floor block |
 | A torch set in the room | the crosses around it gone at once; far corners keep theirs |
 | Pickaxe in hand, or marks switched off | no crosses |
-| Skills screen | the Hands tab with both rows; the bar filled from the test's digging and torches |
+| Quick Climb, 2 s up a ladder looking up: none / I / II / II looking ahead | 4.59 / 7.01 (1.53x) / 9.50 (2.07x) / 4.59 blocks |
+| Horse Whistle: tamed saddled horse ridden, then 53 blocks away, horn while sneaking | the horse stood at the player's spot |
+| The same horn not sneaking | the horse stayed |
+| 120 blocks away / 142 blocks away | came / stayed |
+| Skills screen | the Hands tab with its rows; the bar filled from the test's digging and torches |
 
 ![Spawn marks in a dark room](marks.png)
 ![A torch clears the marks around it](marks-torch.png)
@@ -144,4 +159,5 @@ The tree earns from pickaxe and shovel use and torches placed (`minecraft:used`)
 ## 10. Phases
 
 1. The right tool, back to what you held, refill, a new tool: all built in 0.2.0.
-2. Skills tree Hands with eat on its own, Torch Hand and Spawn Marks: built in 0.3.0.
+2. Skills tree Hands with eat on its own, Torch Hand, Spawn Marks, Quick Climb and Horse Whistle:
+   built in 0.3.0.

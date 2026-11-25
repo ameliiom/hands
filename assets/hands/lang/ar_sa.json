@@ -11,5 +11,13 @@
   "hands.config.all_comforts": "كل الراحات بدون المهارات",
   "hands.config.auto_eat": "الأكل بروحه",
   "hands.config.torch": "شعلة بالكلك اليمين",
-  "hands.config.marks": "علامات الوحوش"
+  "hands.config.marks": "علامات الوحوش",
+  "hands.node.climb_1": "طلعة سريعة 1",
+  "hands.node.climb_2": "طلعة سريعة 2",
+  "hands.node.whistle": "صفارة الخيل",
+  "skills.perk.hands.climb.150": "تطلع السلم أو اللبلاب وأنت ناظر فوق أسرع 1.5 مرة",
+  "skills.perk.hands.climb.200": "تطلع السلم أو اللبلاب وأنت ناظر فوق أسرع مرتين",
+  "skills.perk.hands.whistle": "انفخ قرن الماعز وأنت منحني ويجيك آخر خيل ركبته لين 128 بلوك",
+  "hands.config.climb": "الطلعة السريعة",
+  "hands.config.whistle": "صفارة الخيل"
 }

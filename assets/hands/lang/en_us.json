@@ -11,5 +11,13 @@
   "hands.config.all_comforts": "All comforts without Skills",
   "hands.config.auto_eat": "Eat on its own",
   "hands.config.torch": "Torch with right-click",
-  "hands.config.marks": "Spawn marks"
+  "hands.config.marks": "Spawn marks",
+  "hands.node.climb_1": "Quick Climb I",
+  "hands.node.climb_2": "Quick Climb II",
+  "hands.node.whistle": "Horse Whistle",
+  "skills.perk.hands.climb.150": "Climbing a ladder or vine while looking up goes 1.5x faster",
+  "skills.perk.hands.climb.200": "Climbing a ladder or vine while looking up goes 2x faster",
+  "skills.perk.hands.whistle": "Blow a goat horn while sneaking to call your last ridden horse within 128 blocks",
+  "hands.config.climb": "Quick climb",
+  "hands.config.whistle": "Horse whistle"
 }

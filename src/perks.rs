@@ -9,8 +9,14 @@ pub const EAT: &str = "hands.eat.";
 pub const TORCH: &str = "hands.torch";
 /// Red marks where monsters can spawn, while a torch is held.
 pub const MARKS: &str = "hands.marks";
+/// Tags `hands.climb.<percent>`: climbing while looking up goes this fast (150: 1.5x).
+pub const CLIMB: &str = "hands.climb.";
+/// A goat horn blown while sneaking calls your last ridden horse.
+pub const WHISTLE: &str = "hands.whistle";
 /// The highest hunger line, and what `all_comforts` gives.
 pub const EAT_MAX: i32 = 17;
+/// The fastest climb, in percent of the game's.
+pub const CLIMB_MAX: i32 = 200;
 
 /// One player's comforts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -19,23 +25,35 @@ pub struct Comforts {
     pub eat: i32,
     pub torch: bool,
     pub marks: bool,
+    /// Climb speed in percent of the game's (0: the game's own).
+    pub climb: i32,
+    pub whistle: bool,
 }
 
 impl Comforts {
     pub fn of(tags: &[String], all: bool) -> Self {
         if all {
-            return Comforts { eat: EAT_MAX, torch: true, marks: true };
+            return Comforts { eat: EAT_MAX, torch: true, marks: true, climb: CLIMB_MAX, whistle: true };
         }
+        let best = |prefix: &str, max: i32| tags.iter().filter_map(|t| t.strip_prefix(prefix)?.parse::<i32>().ok()).max().unwrap_or(0).clamp(0, max);
         Comforts {
-            eat: tags.iter().filter_map(|t| t.strip_prefix(EAT)?.parse::<i32>().ok()).max().unwrap_or(0).clamp(0, EAT_MAX),
+            eat: best(EAT, EAT_MAX),
             torch: tags.iter().any(|t| t == TORCH),
             marks: tags.iter().any(|t| t == MARKS),
+            climb: best(CLIMB, CLIMB_MAX),
+            whistle: tags.iter().any(|t| t == WHISTLE),
         }
     }
 
-    /// The comforts left once the player's off switches are applied.
-    pub fn switched(self, eat: bool, torch: bool, marks: bool) -> Self {
-        Comforts { eat: if eat { self.eat } else { 0 }, torch: self.torch && torch, marks: self.marks && marks }
+    /// The comforts left once the off switches (`setting::ALL` order, `all_comforts` first) apply.
+    pub fn switched(self, on: impl Fn(&str) -> bool) -> Self {
+        Comforts {
+            eat: if on(setting::EAT) { self.eat } else { 0 },
+            torch: self.torch && on(setting::TORCH),
+            marks: self.marks && on(setting::MARKS),
+            climb: if on(setting::CLIMB) { self.climb } else { 0 },
+            whistle: self.whistle && on(setting::WHISTLE),
+        }
     }
 }
 
@@ -47,8 +65,10 @@ pub mod setting {
     pub const EAT: &str = "auto_eat";
     pub const TORCH: &str = "torch";
     pub const MARKS: &str = "marks";
+    pub const CLIMB: &str = "climb";
+    pub const WHISTLE: &str = "whistle";
     /// Each key with its default.
-    pub const ALL: [(&str, bool); 4] = [(ALL_COMFORTS, false), (EAT, true), (TORCH, true), (MARKS, true)];
+    pub const ALL: [(&str, bool); 6] = [(ALL_COMFORTS, false), (EAT, true), (TORCH, true), (MARKS, true), (CLIMB, true), (WHISTLE, true)];
 }
 
 #[cfg(test)]
@@ -68,18 +88,20 @@ mod tests {
     #[test]
     fn comforts_read_from_tags() {
         let c = Comforts::of(&t(&["hands.eat.14", "hands.eat.17", "hands.torch"]), false);
-        assert_eq!(c, Comforts { eat: 17, torch: true, marks: false });
-        assert_eq!(Comforts::of(&t(&["hands.eat.99"]), false).eat, EAT_MAX);
-        assert_eq!(Comforts::of(&t(&[]), true), Comforts { eat: 17, torch: true, marks: true });
+        assert_eq!(c, Comforts { eat: 17, torch: true, ..Comforts::default() });
+        assert_eq!(Comforts::of(&t(&["hands.eat.99", "hands.climb.900"]), false), Comforts { eat: EAT_MAX, climb: CLIMB_MAX, ..Comforts::default() });
+        assert_eq!(Comforts::of(&t(&["hands.climb.150", "hands.whistle"]), false), Comforts { climb: 150, whistle: true, ..Comforts::default() });
+        assert_eq!(Comforts::of(&t(&[]), true), Comforts { eat: 17, torch: true, marks: true, climb: 200, whistle: true });
     }
 
     #[test]
     fn an_off_switch_wins_over_an_earned_comfort() {
         let all = Comforts::of(&[], true);
-        assert_eq!(all.switched(false, true, true), Comforts { eat: 0, torch: true, marks: true });
-        assert_eq!(all.switched(true, false, false), Comforts { eat: 17, torch: false, marks: false });
+        assert_eq!(all.switched(|k| k != setting::EAT), Comforts { eat: 0, ..all });
+        assert_eq!(all.switched(|k| k != setting::CLIMB && k != setting::WHISTLE), Comforts { climb: 0, whistle: false, ..all });
+        assert_eq!(all.switched(|_| false), Comforts::default());
         // Switches never give what wasn't earned.
-        assert_eq!(Comforts::default().switched(true, true, true), Comforts::default());
+        assert_eq!(Comforts::default().switched(|_| true), Comforts::default());
     }
 
     /// The tree file gives exactly the tags Hands reads, and every comfort has a node.
@@ -90,8 +112,9 @@ mod tests {
         let given: Vec<String> =
             text.split("\"tag\"").skip(1).filter_map(|rest| rest.split('"').nth(1).map(str::to_owned)).collect();
         for tag in &given {
-            let eat = tag.strip_prefix(EAT).is_some_and(|n| n.parse::<i32>().is_ok_and(|n| n <= EAT_MAX));
-            assert!(eat || tag == TORCH || tag == MARKS, "the tree gives {tag}, which Hands never reads");
+            let level = |p: &str, max: i32| tag.strip_prefix(p).is_some_and(|n| n.parse::<i32>().is_ok_and(|n| n <= max));
+            let read = level(EAT, EAT_MAX) || level(CLIMB, CLIMB_MAX) || [TORCH, MARKS, WHISTLE].contains(&tag.as_str());
+            assert!(read, "the tree gives {tag}, which Hands never reads");
         }
         assert_eq!(Comforts::of(&given, false), Comforts::of(&[], true), "some comfort has no node, or its node stops short");
     }
