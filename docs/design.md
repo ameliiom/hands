@@ -67,9 +67,19 @@ and the server hooks (`left_click_block`, `item_toss`, the tick's hand compariso
 | Last cobblestone dropped with Q | no refill: the 64 stayed in the inventory |
 | Iron pickaxe broken, a stone pickaxe in the inventory | the stone pickaxe took its slot (same kind) |
 
-Still to build: back to the held slot a second after digging stops.
+## 7. Back to what you held (0.2.0), measured in the game (2026-11-25)
 
-## 7. Risks and answers
+A swap remembers the slot held before it; each tick the game asks the player's break speed while
+a dig goes on (`player_break_speed` on the server), and 20 ticks without one bring the hand back.
+A second swap keeps the first slot; a slot the player picks themself ends it.
+
+| Case | Result |
+|---|---|
+| Dirt in hand, stone broken with the swapped-in pickaxe | dirt back in hand after the drops settled |
+| Obsidian (194 ticks with a diamond pickaxe) | dug to the end with the pickaxe, then dirt back |
+| Swapped, then the player picked slot 5 | slot 5 stayed |
+
+## 8. Risks and answers
 
 | Risk | Answer |
 |---|---|
@@ -79,6 +89,6 @@ Still to build: back to the held slot a second after digging stops.
 | A favourite tool used up | a tool with one use left is never picked, and a broken one is replaced only by its own kind |
 | Silk Touch or Fortune wanted on purpose | the hand only changes when the held item is slower; a tool you chose that mines the block stays |
 
-## 8. Phases
+## 9. Phases
 
-1. The right tool, back to what you held, refill, a new tool (the whole mod).
+1. The right tool, back to what you held, refill, a new tool: all built in 0.2.0.

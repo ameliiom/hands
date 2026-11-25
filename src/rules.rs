@@ -61,9 +61,67 @@ pub fn refill_from(before: &Hand, before_kind: Option<&str>, spares: &[Spare]) -
     same.or_else(kin).map(|s| s.slot)
 }
 
+/// Ticks without digging before the hand goes back to the slot it had.
+pub const BACK_AFTER: u32 = 20;
+
+/// A swap to undo: back to `to` once the player has stopped digging with `from`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Back {
+    pub to: usize,
+    pub from: usize,
+    /// Ticks since the last dig.
+    pub quiet: u32,
+}
+
+/// A new swap from `held` to `slot`: a swap already waiting keeps the slot first held.
+pub fn swapped(waiting: Option<Back>, held: usize, slot: usize) -> Back {
+    Back { to: waiting.map_or(held, |b| b.to), from: slot, quiet: 0 }
+}
+
+/// What a tick does with a waiting swap: whether it still waits, and the slot to go back to now.
+/// A hand the player moved themself is left alone.
+pub fn back_tick(b: Back, selected: usize, dug: bool) -> (Option<Back>, Option<usize>) {
+    if selected != b.from {
+        return (None, None);
+    }
+    let quiet = if dug { 0 } else { b.quiet + 1 };
+    if quiet >= BACK_AFTER { (None, (b.to != b.from).then_some(b.to)) } else { (Some(Back { quiet, ..b }), None) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_hand_goes_back_a_second_after_digging_stops() {
+        let mut b = swapped(None, 1, 0);
+        // Digging keeps it.
+        for _ in 0..100 {
+            let (next, go) = back_tick(b, 0, true);
+            assert_eq!(go, None);
+            b = next.unwrap();
+        }
+        for tick in 1..=BACK_AFTER {
+            let (next, go) = back_tick(b, 0, false);
+            if tick < BACK_AFTER {
+                assert_eq!(go, None);
+                b = next.unwrap();
+            } else {
+                assert_eq!((next, go), (None, Some(1)));
+            }
+        }
+    }
+
+    #[test]
+    fn a_hand_moved_by_the_player_is_left_alone() {
+        assert_eq!(back_tick(swapped(None, 1, 0), 5, false), (None, None));
+    }
+
+    #[test]
+    fn a_second_swap_keeps_the_first_slot() {
+        let first = swapped(None, 4, 0);
+        assert_eq!(swapped(Some(first), 0, 2), Back { to: 4, from: 2, quiet: 0 });
+    }
 
     fn c(slot: usize, speed: f32, uses: Option<i64>) -> Candidate {
         Candidate { slot, speed, uses }

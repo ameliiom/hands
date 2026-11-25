@@ -1,7 +1,7 @@
 //! The server: the first hit on a block brings the hotbar's best tool to the hand; each tick the
 //! hand is compared with the last, and a hand emptied by use is refilled from the main inventory.
 //! Comparing hands each tick (not the tool-break hook) works for the LAN host too.
-use crate::rules::{self, Candidate, Hand, Spare};
+use crate::rules::{self, Back, Candidate, Hand, Spare};
 use mod_api::{ComponentId, Host, ItemResource, ItemStack, PlayerRef, ServerHost, Tag};
 #[allow(unused_imports)]
 use mod_api::prelude::*;
@@ -16,9 +16,14 @@ struct State {
     hands: BTreeMap<u128, Hand>,
     /// Players who tossed an item this tick: their emptied hand isn't refilled.
     tossed: BTreeSet<u128>,
+    /// Swaps to undo once each player stops digging.
+    back: BTreeMap<u128, Back>,
+    /// Entity ids of the players whose dig went on this tick (the game asks their break speed).
+    dug: BTreeSet<u32>,
 }
 
-static STATE: Mutex<State> = Mutex::new(State { hands: BTreeMap::new(), tossed: BTreeSet::new() });
+static STATE: Mutex<State> =
+    Mutex::new(State { hands: BTreeMap::new(), tossed: BTreeSet::new(), back: BTreeMap::new(), dug: BTreeSet::new() });
 
 fn with<R>(f: impl FnOnce(&mut State) -> R) -> R {
     f(&mut STATE.lock().unwrap_or_else(|e| e.into_inner()))
@@ -63,9 +68,19 @@ pub fn hit(host: &mut dyn ServerHost, pos: [i32; 3]) {
             }
         })
         .collect();
-    if let Some(slot) = rules::best_tool(held, &candidates) {
-        p.set_selected_slot(host, slot);
+    if let Some(slot) = rules::best_tool(held, &candidates)
+        && p.set_selected_slot(host, slot)
+    {
+        with(|s| {
+            let waiting = s.back.get(&p.uuid()).copied();
+            s.back.insert(p.uuid(), rules::swapped(waiting, held, slot));
+        });
     }
+}
+
+/// The game asked a player's break speed: they are still digging.
+pub fn digging(entity: u32) {
+    with(|s| s.dug.insert(entity));
 }
 
 /// A player tossed an item: if that emptied the hand, it was no use.
@@ -75,9 +90,21 @@ pub fn tossed(player: u128) {
 
 /// Each tick: a hand emptied by use since the last tick is refilled from the main inventory.
 pub fn tick(host: &mut dyn ServerHost) {
-    let tossed = with(|s| std::mem::take(&mut s.tossed));
+    let (tossed, dug) = with(|s| (std::mem::take(&mut s.tossed), std::mem::take(&mut s.dug)));
     for p in host.players().server_players() {
         let Some(slot) = p.selected_slot(&*host) else { continue };
+        // Back to the slot held before a swap, a second after the digging stopped.
+        if let Some(b) = with(|s| s.back.get(&p.uuid()).copied()) {
+            let (wait, go) = rules::back_tick(b, slot, dug.contains(&p.entity().id()));
+            with(|s| match wait {
+                Some(w) => s.back.insert(p.uuid(), w),
+                None => s.back.remove(&p.uuid()),
+            });
+            if let Some(to) = go {
+                p.set_selected_slot(host, to);
+                continue;
+            }
+        }
         let all = slots(&*host, p);
         let now = all.iter().find(|(s, _)| *s as usize == slot).map(|(_, st)| Hand {
             slot,
@@ -131,5 +158,6 @@ pub fn forget(player: u128) {
     with(|s| {
         s.hands.remove(&player);
         s.tossed.remove(&player);
+        s.back.remove(&player);
     });
 }
