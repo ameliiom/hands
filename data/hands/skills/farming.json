@@ -1,0 +1,38 @@
+{
+  "extends": "skills:farming",
+  "nodes": [
+    {
+      "id": "hands_eat_1",
+      "title": "hands.node.eat_1",
+      "icon": "minecraft:bread",
+      "at": [
+        0,
+        6
+      ],
+      "cost": 1,
+      "perks": [
+        {
+          "tag": "hands.eat.14"
+        }
+      ]
+    },
+    {
+      "id": "hands_eat_2",
+      "title": "hands.node.eat_2",
+      "icon": "minecraft:cooked_beef",
+      "at": [
+        1,
+        6
+      ],
+      "cost": 3,
+      "needs": [
+        "hands_eat_1"
+      ],
+      "perks": [
+        {
+          "tag": "hands.eat.17"
+        }
+      ]
+    }
+  ]
+}

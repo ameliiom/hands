@@ -1,15 +1,14 @@
-//! The earned comforts on the server: eating on its own, the torch on a right-click, and telling
-//! each client whether it draws the spawn marks.
+//! The earned comforts on the server: eating on its own, the torch on a right-click, quick
+//! climbing and the horse whistle.
 //!
 //! Hunger is read each tick rather than heard from `food_level_changed`, which the game never
 //! sends for the host of a LAN world (the owner's own player).
-use crate::payloads::{self, Marks};
 use crate::perks::{Comforts, setting};
 use crate::rules::{self, Food, TorchAt};
 use crate::server::tool_kind;
 use mod_api::{
     BlockClick, BlockFace, EntityRef, BlockMetadata, BlockState, ComponentId, GameMode, Host, HostBlockStates, ItemResource, ItemStack, PlayerRef,
-    ServerHost, SettingSpec, SettingValue, SoundSource, StatType, StateConstraint, Tag, VarInt,
+    ServerHost, SettingSpec, SettingValue, SoundSource, StatType, StateConstraint, Tag,
 };
 #[allow(unused_imports)]
 use mod_api::prelude::*;
@@ -36,8 +35,6 @@ fn comforts(host: &dyn Host, p: PlayerRef) -> Comforts {
 struct State {
     /// Ticks since each player last ate on their own.
     since_meal: BTreeMap<u128, u32>,
-    /// What each client was last told about the marks.
-    told: BTreeMap<u128, bool>,
     /// Each player's height on the last tick, to tell climbing up from down.
     last_y: BTreeMap<u128, f64>,
     /// The horse each player rides or last rode (entity id), tagged `hands.rider.<uuid>`.
@@ -45,7 +42,7 @@ struct State {
 }
 
 static STATE: Mutex<State> =
-    Mutex::new(State { since_meal: BTreeMap::new(), told: BTreeMap::new(), last_y: BTreeMap::new(), rode: BTreeMap::new() });
+    Mutex::new(State { since_meal: BTreeMap::new(), last_y: BTreeMap::new(), rode: BTreeMap::new() });
 
 fn with<R>(f: impl FnOnce(&mut State) -> R) -> R {
     f(&mut STATE.lock().unwrap_or_else(|e| e.into_inner()))
@@ -89,8 +86,8 @@ fn stacks(host: &dyn Host, p: PlayerRef) -> Vec<(u32, ItemStack)> {
     p.inventory_slots(host).unwrap_or_default().into_iter().filter(|(s, st)| (*s < 36 || *s == 40) && st.count() > 0).collect()
 }
 
-/// Each tick: a player below their hunger line eats the best plain food they carry, and clients
-/// hear when their spawn marks were earned or lost.
+/// Each tick: a player below their hunger line eats the best plain food they carry; climbing and
+/// the horse ridden are looked at.
 pub fn tick(host: &mut dyn ServerHost) {
     for p in host.players().server_players() {
         let c = comforts(&*host, p);
@@ -108,8 +105,6 @@ pub fn tick(host: &mut dyn ServerHost) {
         {
             with(|s| s.since_meal.insert(p.uuid(), 0));
         }
-        let marks = earned(&*host, p).marks;
-        tell(host, p, marks);
         climb(host, p, c.climb);
         remember_horse(host, p);
     }
@@ -210,18 +205,6 @@ fn eat(host: &mut dyn ServerHost, p: PlayerRef, level: i32, line: i32) -> bool {
     true
 }
 
-/// Tells a client whether it draws the marks, once per change (a client not ready yet is asked
-/// again next tick).
-fn tell(host: &mut dyn ServerHost, p: PlayerRef, marks: bool) {
-    if with(|s| s.told.get(&p.uuid()) == Some(&marks)) {
-        return;
-    }
-    let Some(token) = payloads::MARKS.get() else { return };
-    if token.send(host, p, &Marks { earned: VarInt(i32::from(marks)) }).is_ok() {
-        with(|s| s.told.insert(p.uuid(), marks));
-    }
-}
-
 fn face_of(n: [i32; 3]) -> Option<BlockFace> {
     Some(match n {
         [0, 1, 0] => BlockFace::Up,
@@ -311,7 +294,6 @@ fn torch_state(host: &dyn Host, at: TorchAt) -> Option<BlockState> {
 pub fn forget(player: u128) {
     with(|s| {
         s.since_meal.remove(&player);
-        s.told.remove(&player);
         s.last_y.remove(&player);
         s.rode.remove(&player);
     });

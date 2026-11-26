@@ -79,7 +79,9 @@ A second swap keeps the first slot; a slot the player picks themself ends it.
 | Obsidian (194 ticks with a diamond pickaxe) | dug to the end with the pickaxe, then dirt back |
 | Swapped, then the player picked slot 5 | slot 5 stayed |
 
-## 8. Comforts earned in the Skills tree Hands (0.3.0), measured in the game (2026-11-26)
+## 8. Comforts earned in a Skills tree Hands (0.3.0), measured in the game (2026-11-26)
+
+(0.4.0 moved the nodes into Skills' own trees and Spawn Marks into Map: see §9.)
 
 Three comforts from batch 2 and two from batch 3, each off until earned and each with its own off switch (Options >
 Mods > Hands > Config; `all_comforts` opens them without Skills). As with Gathering and Storage
@@ -144,7 +146,32 @@ The tree earns from pickaxe and shovel use, torches placed (`minecraft:used`), c
 ![Spawn marks in a dark room](marks.png)
 ![A torch clears the marks around it](marks-torch.png)
 
-## 9. Risks and answers
+## 9. Into Skills' own trees (0.4.0, 2026-11-26)
+
+Owner's rule: new work extends what exists and never repeats a meaning. A tree of Hands' own
+repeated Skills' trees, and the in-world spawn marks repeated Map's light overlay, so:
+
+- The tree `hands:hands` is gone. Hands ships three files that extend Skills' trees, with the
+  same tag perks (progress in the old Hands tab starts again from zero):
+
+  | Skills tree | Nodes (row) | Extra experience |
+  |---|---|---|
+  | Mining (`skills:mining`) | **Torch Hand** (row 7, below Gathering's rows 5 and 6) | torches placed (`minecraft:used` torch); pickaxe and shovel blocks Mining already counts |
+  | Exploration (`skills:exploration`) | **Quick Climb I → II → Horse Whistle** (row 5) | none: climbing and riding already count |
+  | Farming (`skills:farming`) | **Snack I → II** (row 7, below Gathering's rows 4 to 6) | none |
+
+- **Spawn Marks** left Hands: Map 0.3.0 draws its light overlay in the world too, with the same
+  rule as the map (one `light::Rule`: block or sky light between the overlay's min and max, red at
+  0, yellow above), earned with Map's own node **Spawn Sight** (`map/data/map/skills/mining.json`, extends Mining,
+  tag `map.marks`), read on the client through Skills 0.2.1's `skills::has_tag`. The marks code (`client.rs`, the `hands:marks` payload)
+  is removed from Hands.
+
+| Check (0.4.0, in the game) | Result |
+|---|---|
+| Skills screen | no Hands tab, no node on another's spot (`tools/overlap_gate.py`); Torch Hand in Mining, Quick Climb and Horse Whistle in Exploration, Snack in Farming |
+| The comforts with their tags | unchanged from §8 (same code and tags) |
+
+## 10. Risks and answers
 
 | Risk | Answer |
 |---|---|
@@ -155,10 +182,10 @@ The tree earns from pickaxe and shovel use, torches placed (`minecraft:used`), c
 | Silk Touch or Fortune wanted on purpose | the hand only changes when the held item is slower; a tool you chose that mines the block stays |
 | Eating something you meant to keep | golden apples and every food with an effect are never eaten; the switch turns it off |
 | A torch where you wanted a path (shovel on grass) | only on dark spots, where monsters would spawn anyway |
-| Marks cost frames | found only on a move or a world change (17 × 33 × 33 blocks), drawn as lines each frame |
 
-## 10. Phases
+## 11. Phases
 
 1. The right tool, back to what you held, refill, a new tool: all built in 0.2.0.
 2. Skills tree Hands with eat on its own, Torch Hand, Spawn Marks, Quick Climb and Horse Whistle:
    built in 0.3.0.
+3. Nodes moved into Skills' Mining, Exploration and Farming trees; Spawn Marks moved into Map: 0.4.0.

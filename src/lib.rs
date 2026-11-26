@@ -1,36 +1,27 @@
 //! Hands: hit a block and the hotbar's best tool comes to your hand, use up a stack and the next
 //! comes from your inventory, break a tool and one like it takes its place; and comforts earned
-//! in the Skills tree Hands (eat on its own, a torch on a right-click, spawn marks, quick climb,
-//! horse whistle). See
+//! in Skills' own trees (eat on its own, a torch on a right-click, quick climb, horse whistle). See
 //! `docs/design.md`.
 //!
 //! - **The decisions** (`rules.rs`): which slot mines best, whether a hand emptied by use, which
-//!   spare refills it, which food to eat, where a torch goes, where monsters spawn; plain values.
+//!   spare refills it, which food to eat, where a torch goes, how fast to climb, which horse comes; plain values.
 //! - **The comforts** (`perks.rs`): the tags the tree gives and the settings, no code tie to Skills.
 //! - **The server** (`server.rs`): the first hit's swap, the way back once digging stops, and the
-//!   tick's refill; (`comforts.rs`) eating, the torch, telling clients about the marks.
-//! - **The client** (`client.rs`): the spawn marks.
-mod client;
+//!   tick's refill; (`comforts.rs`) eating, the torch, climbing, the whistle.
 mod comforts;
-mod payloads;
 pub mod perks;
 pub mod rules;
 mod server;
 
 use mod_api::{
-    ClientHost, ClientLevelUnloadEvent, ClientPacketEvent, ClientTickPostEvent, Flow, Hooks, HostSide, IPayloadContext, InteractionResult,
-    ItemTossEvent, LeftClickBlockEvent, PayloadId, PlayerBreakSpeedEvent, PlayerLoggedOutEvent, Registrar, RegistrationContext,
-    RenderLevelStageEvent, RightClickItemEvent, ServerHost, ServerTickEvent, ServerTickPhase, SettingSpec, UseItemOnBlockEvent, UsePhase,
+    Flow, Hooks, HostSide, InteractionResult,
+    ItemTossEvent, LeftClickBlockEvent, PlayerBreakSpeedEvent, PlayerLoggedOutEvent, Registrar, RegistrationContext,
+    RightClickItemEvent, ServerHost, ServerTickEvent, ServerTickPhase, SettingSpec, UseItemOnBlockEvent, UsePhase,
 };
 #[allow(unused_imports)]
 use mod_api::prelude::*;
 
 pub(crate) const MOD_ID: &str = "hands";
-
-fn on_marks(marks: payloads::Marks, _: &mut dyn IPayloadContext) -> Result<(), String> {
-    client::earned(marks.earned.0 != 0);
-    Ok(())
-}
 
 #[derive(Default)]
 pub struct Mod;
@@ -43,9 +34,6 @@ impl Hooks for Mod {
                 eprintln!("[hands] the setting {key}: {e:?}");
             }
         }
-        let mut handlers = r.payload_handlers();
-        let mut v1 = handlers.registrar("1").optional();
-        let _ = payloads::MARKS.set(v1.play_to_client_typed(PayloadId("hands:marks".into()), on_marks));
     }
 
     /// The first hit on a block (a dig's start): the right tool to the hand.
@@ -100,20 +88,7 @@ impl Hooks for Mod {
         comforts::forget(event.player);
     }
 
-    fn client_tick_post(&self, host: &mut dyn ClientHost, _: &mut ClientTickPostEvent) {
-        client::tick(host);
-    }
 
-    /// Blocks or light changed around the player: the spawn marks are found again.
-    fn client_packet(&self, _: &mut dyn ClientHost, event: &mut ClientPacketEvent<'_>) {
-        client::packet(event.packet);
-    }
 
-    fn client_level_unload(&self, _: &mut dyn ClientHost, _: &mut ClientLevelUnloadEvent) {
-        client::reset();
-    }
 
-    fn render_level_stage(&self, host: &dyn ClientHost, event: &mut RenderLevelStageEvent<'_>) {
-        client::draw(host, event);
-    }
 }

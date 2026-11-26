@@ -1,7 +1,7 @@
 id = "hands"
 name = "Hands"
-version = "0.3.1"
-description = "Hit a block and the right tool comes to your hand, use up a stack and the next comes from your inventory, break a tool and one like it takes its place; eat on its own, torches with a right-click, spawn marks, quick climbing and a horse whistle earned in the Skills tree Hands."
+version = "0.4.0"
+description = "Hit a block and the right tool comes to your hand, use up a stack and the next comes from your inventory, break a tool and one like it takes its place; eat on its own, torches with a right-click, quick climbing and a horse whistle earned in Skills' trees."
 authors = ["ameliiom"]
 license = "MIT"
 api = "0.2"

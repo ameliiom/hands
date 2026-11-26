@@ -173,32 +173,6 @@ pub fn torch_from(stacks: &[(u32, u32)]) -> Option<u32> {
     stacks.iter().min_by_key(|(slot, count)| (*slot < 9, *count, std::cmp::Reverse(*slot))).map(|(slot, _)| *slot)
 }
 
-/// How far around the player spawn spots are marked: 16 blocks across, 8 up and down.
-pub const MARK_REACH: i32 = 16;
-pub const MARK_HEIGHT: i32 = 8;
-
-/// A block as the marks see it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Cell {
-    /// Air (and cave air): room for a monster.
-    Air,
-    /// An opaque full block a monster may stand on.
-    Floor,
-    /// Anything else.
-    Other,
-}
-
-/// The cells of a column (bottom up) that a monster may stand on: a floor with two airs above it.
-/// Returns the floor's index.
-pub fn spawn_floors(column: &[Cell]) -> impl Iterator<Item = usize> + '_ {
-    column.windows(3).enumerate().filter(|(_, w)| w == &[Cell::Floor, Cell::Air, Cell::Air]).map(|(i, _)| i)
-}
-
-/// Blocks with a full opaque top where monsters still never spawn.
-pub fn never_spawn_on(block: &str) -> bool {
-    matches!(block, "minecraft:bedrock" | "minecraft:barrier" | "minecraft:magma_block" | "minecraft:packed_ice" | "minecraft:blue_ice")
-}
-
 /// The upward speed that climbs as fast as the game does: the game climbs 0.115 blocks a tick
 /// (4.59 blocks in 2 s, measured), and a speed set from the server moves 0.89 of itself in the
 /// client's tick (0.3 → 0.268, 0.4 → 0.355, measured), so 0.129 is "1x".
@@ -325,15 +299,6 @@ mod tests {
         assert_eq!(torch_from(&[(2, 64), (20, 30), (30, 5)]), Some(30));
         assert_eq!(torch_from(&[(2, 64), (5, 3)]), Some(5));
         assert_eq!(torch_from(&[]), None);
-    }
-
-    #[test]
-    fn a_spawn_floor_needs_two_airs_above() {
-        use Cell::*;
-        let col = [Floor, Air, Air, Floor, Air, Other, Floor, Air, Air, Air];
-        assert_eq!(spawn_floors(&col).collect::<Vec<_>>(), vec![0, 6]);
-        assert_eq!(spawn_floors(&[Floor, Air]).count(), 0, "the top of the scan");
-        assert!(never_spawn_on("minecraft:bedrock") && !never_spawn_on("minecraft:stone"));
     }
 
     #[test]

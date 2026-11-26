@@ -11,15 +11,14 @@ For [Horizon](https://playhorizon.dev) (Minecraft: Java Edition 26.3 in Rust). Y
 
 These four work for everyone, the host of a LAN world too, with nothing to earn.
 
-## Comforts earned in the Skills tree Hands
-With [Skills](https://github.com/ameliiom/skills), the tab **Hands** (earned by digging with pickaxes and shovels, placing torches, climbing and riding) unlocks:
-- **Snack I / II**: when hunger drops below 14 (then 17), you eat the best plain food from your inventory. Rotten flesh, spider eyes, poisonous potatoes, pufferfish, raw chicken, golden apples, suspicious stew and chorus fruit are never eaten.
-- **Torch Hand**: right-click a dark floor or wall with a pickaxe or shovel and a torch from your inventory goes there. Chests, doors and other blocks still open as always.
-- **Spawn Marks**: while you hold a torch, small red crosses show the blocks around you where monsters can spawn.
-- **Quick Climb I / II**: climbing a ladder or vine while looking up goes 1.5x (then 2x) as fast.
-- **Horse Whistle**: blow a goat horn while sneaking and the last horse you rode comes to you, if it is tamed, nobody sits on it, and it is within 128 blocks in the same world.
+## Comforts earned in Skills' trees
+With [Skills](https://github.com/ameliiom/skills), Hands adds nodes to Skills' own trees:
+- **Snack I / II** (Farming): when hunger drops below 14 (then 17), you eat the best plain food from your inventory. Rotten flesh, spider eyes, poisonous potatoes, pufferfish, raw chicken, golden apples, suspicious stew and chorus fruit are never eaten.
+- **Torch Hand** (Mining, and placing torches earns Mining experience): right-click a dark floor or wall with a pickaxe or shovel and a torch from your inventory goes there. Chests, doors and other blocks still open as always.
+- **Quick Climb I / II** (Exploration): climbing a ladder or vine while looking up goes 1.5x (then 2x) as fast.
+- **Horse Whistle** (Exploration): blow a goat horn while sneaking and the last horse you rode comes to you, if it is tamed, nobody sits on it, and it is within 128 blocks in the same world.
 
-![Spawn marks](docs/marks.png)
+The marks where monsters can spawn are now part of [Map](https://github.com/ameliiom/map) (its light overlay, drawn in the world while you hold a torch).
 
 Each can be switched off in Options > Mods > Hands > Config. Without Skills, the setting **All comforts without Skills** opens them all.
 

@@ -1,0 +1,27 @@
+{
+  "extends": "skills:mining",
+  "sources": [
+    {
+      "stat": "minecraft:used",
+      "of": "minecraft:torch",
+      "xp": 2
+    }
+  ],
+  "nodes": [
+    {
+      "id": "hands_torch",
+      "title": "hands.node.torch",
+      "icon": "minecraft:torch",
+      "at": [
+        0,
+        6
+      ],
+      "cost": 2,
+      "perks": [
+        {
+          "tag": "hands.torch"
+        }
+      ]
+    }
+  ]
+}
