@@ -138,6 +138,7 @@ The tree earns from pickaxe and shovel use, torches placed (`minecraft:used`), c
 | Horse Whistle: tamed saddled horse ridden, then 53 blocks away, horn while sneaking | the horse stood at the player's spot |
 | The same horn not sneaking | the horse stayed |
 | 120 blocks away / 142 blocks away | came / stayed |
+| A villager riding the horse, 68 blocks away | stayed; once it got off, came |
 | Skills screen | the Hands tab with its rows; the bar filled from the test's digging and torches |
 
 ![Spawn marks in a dark room](marks.png)
