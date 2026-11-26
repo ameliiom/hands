@@ -1,12 +1,16 @@
 id = "hands"
 name = "Hands"
-version = "0.4.0"
+version = "0.4.1"
 description = "Hit a block and the right tool comes to your hand, use up a stack and the next comes from your inventory, break a tool and one like it takes its place; eat on its own, torches with a right-click, quick climbing and a horse whistle earned in Skills' trees."
 authors = ["ameliiom"]
 license = "MIT"
 api = "0.2"
 side = "both"
 capabilities = ["registries"]
+
+[dependencies]
+# The shared code of ameliiom's mods (settings, comforts, inventory, outline, ...).
+kit = "^0.1"
 
 [native]
 game = "26.3"

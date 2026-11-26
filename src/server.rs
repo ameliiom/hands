@@ -2,7 +2,7 @@
 //! hand is compared with the last, and a hand emptied by use is refilled from the main inventory.
 //! Comparing hands each tick (not the tool-break hook) works for the LAN host too.
 use crate::rules::{self, Back, Candidate, Hand, Spare};
-use mod_api::{ComponentId, Host, ItemResource, ItemStack, PlayerRef, ServerHost, Tag};
+use mod_api::{Host, ItemResource, ItemStack, PlayerRef, ServerHost};
 #[allow(unused_imports)]
 use mod_api::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -31,12 +31,7 @@ fn with<R>(f: impl FnOnce(&mut State) -> R) -> R {
 
 /// Uses left before `stack` breaks, None for an item that doesn't wear.
 fn uses(host: &dyn Host, stack: &ItemStack) -> Option<i64> {
-    let kind = ItemResource::of(stack);
-    let int = |id: &str| match ComponentId::new(id).and_then(|c| kind.value(host, &c)) {
-        Some(Tag::Int(n)) => Some(i64::from(n)),
-        _ => None,
-    };
-    int("minecraft:max_damage").map(|max| max - int("minecraft:damage").unwrap_or(0))
+    crate::kit::wear::uses_left(host, &ItemResource::of(stack))
 }
 
 pub(crate) fn tool_kind(host: &dyn Host, item: &str) -> Option<String> {

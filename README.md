@@ -23,6 +23,8 @@ The marks where monsters can spawn are now part of [Map](https://github.com/amel
 Each can be switched off in Options > Mods > Hands > Config. Without Skills, the setting **All comforts without Skills** opens them all.
 
 ## Install
+Needs [Kit](https://github.com/ameliiom/kit) 0.1 or later, the shared code of these mods, installed the same way (`kit.hmod`, `mod.kit:true`).
+
 1. Copy `hands.hmod` into `%APPDATA%\horizon\horizon-native-mods\`.
 2. Add the line `mod.hands:true` to `%APPDATA%\horizon\horizon-mods.txt`.
 3. Build: the launcher's Mods page **Build**, or `horizon-launcher native-build --instance horizon --trust-native-code`. A native mod runs with your rights: install it only from a source you trust.

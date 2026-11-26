@@ -161,12 +161,6 @@ pub fn torch_at(face: [i32; 3]) -> Option<TorchAt> {
     })
 }
 
-/// Whether a spot is dark enough for monsters: no block light, and the sky's light, after the
-/// time of day and weather took their share (`sky_darken`), at most 7.
-pub fn dark(block: i32, sky: i32, sky_darken: i32) -> bool {
-    block <= 0 && sky - sky_darken <= 7
-}
-
 /// The torch stack to pay with: from the main inventory before the hotbar, the smallest stack
 /// first (so stacks tidy up), then the highest slot.
 pub fn torch_from(stacks: &[(u32, u32)]) -> Option<u32> {
@@ -283,15 +277,6 @@ mod tests {
         assert_eq!(torch_at([0, -1, 0]), None);
         assert_eq!(torch_at([0, 0, -1]), Some(TorchAt::Wall { facing: "north" }));
         assert_eq!(torch_at([1, 0, 0]), Some(TorchAt::Wall { facing: "east" }));
-    }
-
-    #[test]
-    fn dark_is_monster_dark() {
-        assert!(dark(0, 0, 0), "a cave");
-        assert!(!dark(1, 0, 0), "a torch's light far off");
-        assert!(!dark(0, 15, 0), "noon outside");
-        assert!(dark(0, 15, 11), "midnight outside");
-        assert!(!dark(0, 15, 3), "an evening");
     }
 
     #[test]

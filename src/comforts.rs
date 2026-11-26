@@ -3,33 +3,27 @@
 //!
 //! Hunger is read each tick rather than heard from `food_level_changed`, which the game never
 //! sends for the host of a LAN world (the owner's own player).
-use crate::perks::{Comforts, setting};
+use crate::kit;
+use crate::perks::Comforts;
 use crate::rules::{self, Food, TorchAt};
 use crate::server::tool_kind;
 use mod_api::{
     BlockClick, BlockFace, EntityRef, BlockMetadata, BlockState, ComponentId, GameMode, Host, HostBlockStates, ItemResource, ItemStack, PlayerRef,
-    ServerHost, SettingSpec, SettingValue, SoundSource, StatType, StateConstraint, Tag,
+    ServerHost, SoundSource, StatType, StateConstraint, Tag,
 };
 #[allow(unused_imports)]
 use mod_api::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-/// A setting's value, its default when never set.
-pub fn on(host: &dyn Host, key: &str) -> bool {
-    let default = setting::ALL.iter().find(|(k, _)| *k == key).is_some_and(|(_, d)| *d);
-    let spec = SettingSpec::toggle(key, format!("hands.config.{key}"), default);
-    matches!(spec.read(host.setting(crate::MOD_ID, key).as_deref()), SettingValue::Toggle(true))
-}
-
 /// What a player has earned (their tags, or everything with `all_comforts`).
 pub fn earned(host: &dyn Host, p: PlayerRef) -> Comforts {
-    Comforts::of(&p.entity().tags(host).unwrap_or_default(), on(host, setting::ALL_COMFORTS))
+    kit::comforts::read(host, crate::MOD_ID, p, Comforts::of)
 }
 
 /// What a player has earned and not switched off.
 fn comforts(host: &dyn Host, p: PlayerRef) -> Comforts {
-    earned(host, p).switched(|key| on(host, key))
+    earned(host, p).switched(|key| key.read(host, crate::MOD_ID))
 }
 
 struct State {
@@ -244,7 +238,7 @@ pub fn torch(host: &mut dyn ServerHost, click: &BlockClick<'_>) -> bool {
     let name = |pos| level.block_state(&*host, pos).and_then(|s| states.name(s.block()).ok().map(str::to_owned)).unwrap_or_default();
     let light = |layer| level.brightness(&*host, layer, spot).unwrap_or(15);
     let darken = level.get_sky_darken(&*host).unwrap_or(0);
-    if !is_air(&name(spot)) || !rules::dark(light(mod_api::LightLayer::Block), light(mod_api::LightLayer::Sky), darken) {
+    if !is_air(&name(spot)) || !kit::light::monster_dark(light(mod_api::LightLayer::Block), light(mod_api::LightLayer::Sky), darken) {
         return false;
     }
     let support = match at {

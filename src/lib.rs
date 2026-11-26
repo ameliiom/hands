@@ -8,6 +8,14 @@
 //! - **The comforts** (`perks.rs`): the tags the tree gives and the settings, no code tie to Skills.
 //! - **The server** (`server.rs`): the first hit's swap, the way back once digging stops, and the
 //!   tick's refill; (`comforts.rs`) eating, the torch, climbing, the whistle.
+// Kit (ameliiom/kit), the shared code: the installed Kit mod, or its source in place for
+// local builds (`kit_local`, horizon-mods/.cargo/config.toml).
+#[cfg(kit_local)]
+#[allow(dead_code)]
+#[path = "../../kit/src/lib.rs"]
+mod kit;
+#[cfg(not(kit_local))]
+use ::kit;
 mod comforts;
 pub mod perks;
 pub mod rules;
@@ -16,7 +24,7 @@ mod server;
 use mod_api::{
     Flow, Hooks, HostSide, InteractionResult,
     ItemTossEvent, LeftClickBlockEvent, PlayerBreakSpeedEvent, PlayerLoggedOutEvent, Registrar, RegistrationContext,
-    RightClickItemEvent, ServerHost, ServerTickEvent, ServerTickPhase, SettingSpec, UseItemOnBlockEvent, UsePhase,
+    RightClickItemEvent, ServerHost, ServerTickEvent, ServerTickPhase, UseItemOnBlockEvent, UsePhase,
 };
 #[allow(unused_imports)]
 use mod_api::prelude::*;
@@ -29,9 +37,9 @@ pub struct Mod;
 #[mod_api::horizon_mod]
 impl Hooks for Mod {
     fn register(&self, r: &mut dyn Registrar, _cx: &RegistrationContext) {
-        for (key, default) in perks::setting::ALL {
-            if let Err(e) = r.register_setting(SettingSpec::toggle(key, format!("hands.config.{key}"), default)) {
-                eprintln!("[hands] the setting {key}: {e:?}");
+        for key in perks::setting::ALL {
+            if let Err(e) = r.register_setting(key.spec(MOD_ID)) {
+                eprintln!("[hands] the setting {}: {e:?}", key.key);
             }
         }
     }

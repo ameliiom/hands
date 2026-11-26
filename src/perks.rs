@@ -32,17 +32,18 @@ impl Comforts {
         if all {
             return Comforts { eat: EAT_MAX, torch: true, climb: CLIMB_MAX, whistle: true };
         }
-        let best = |prefix: &str, max: i32| tags.iter().filter_map(|t| t.strip_prefix(prefix)?.parse::<i32>().ok()).max().unwrap_or(0).clamp(0, max);
+        use crate::kit::comforts::{best, has};
+        let best = |prefix: &str, max: i32| best(tags, prefix, max as usize) as i32;
         Comforts {
             eat: best(EAT, EAT_MAX),
-            torch: tags.iter().any(|t| t == TORCH),
+            torch: has(tags, TORCH),
             climb: best(CLIMB, CLIMB_MAX),
-            whistle: tags.iter().any(|t| t == WHISTLE),
+            whistle: has(tags, WHISTLE),
         }
     }
 
-    /// The comforts left once the off switches (`setting::ALL` order, `all_comforts` first) apply.
-    pub fn switched(self, on: impl Fn(&str) -> bool) -> Self {
+    /// The comforts left once the off switches (`setting::SWITCHES`) apply.
+    pub fn switched(self, on: impl Fn(Toggle) -> bool) -> Self {
         Comforts {
             eat: if on(setting::EAT) { self.eat } else { 0 },
             torch: self.torch && on(setting::TORCH),
@@ -52,17 +53,18 @@ impl Comforts {
     }
 }
 
-/// Settings (Options > Mods > Hands).
+use crate::kit::setting::Toggle;
+
+/// Settings (Options > Mods > Hands): every comfort without Skills, then the off switches.
 pub mod setting {
-    /// Opens every comfort for a world that doesn't use Skills.
-    pub const ALL_COMFORTS: &str = "all_comforts";
+    use crate::kit::setting::Toggle;
     /// Off switches for comforts already earned (on by default).
-    pub const EAT: &str = "auto_eat";
-    pub const TORCH: &str = "torch";
-    pub const CLIMB: &str = "climb";
-    pub const WHISTLE: &str = "whistle";
-    /// Each key with its default.
-    pub const ALL: [(&str, bool); 5] = [(ALL_COMFORTS, false), (EAT, true), (TORCH, true), (CLIMB, true), (WHISTLE, true)];
+    pub const EAT: Toggle = Toggle::on("auto_eat");
+    pub const TORCH: Toggle = Toggle::on("torch");
+    pub const CLIMB: Toggle = Toggle::on("climb");
+    pub const WHISTLE: Toggle = Toggle::on("whistle");
+    /// Every setting, in the order the screen shows them.
+    pub const ALL: [Toggle; 5] = [crate::kit::comforts::ALL, EAT, TORCH, CLIMB, WHISTLE];
 }
 
 #[cfg(test)]
@@ -113,8 +115,7 @@ mod tests {
         let text = shipped();
         assert!(!text.contains("\"title\": \"hands.tree"), "Hands defines no tree of its own");
         assert_eq!(text.matches("\"extends\": \"skills:").count(), 3);
-        let given: Vec<String> =
-            text.split("\"tag\"").skip(1).filter_map(|rest| rest.split('"').nth(1).map(str::to_owned)).collect();
+        let given = crate::kit::comforts::tree_tags(&text);
         for tag in &given {
             let level = |p: &str, max: i32| tag.strip_prefix(p).is_some_and(|n| n.parse::<i32>().is_ok_and(|n| n <= max));
             let read = level(EAT, EAT_MAX) || level(CLIMB, CLIMB_MAX) || [TORCH, WHISTLE].contains(&tag.as_str());
@@ -123,19 +124,13 @@ mod tests {
         assert_eq!(Comforts::of(&given, false), Comforts::of(&[], true), "some comfort has no node, or its node stops short");
     }
 
-    /// Both languages hold the same keys, and every title, perk and setting shown has its line.
+    /// Every title, perk and setting shown has its line (that both languages hold the same keys
+    /// is the workspace's `tools/lang_gate.py`; the shared all-comforts label is Kit's).
     #[test]
-    fn every_shown_key_is_in_both_languages() {
+    fn every_shown_key_has_its_line() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let keys = |lang: &str| -> Vec<String> {
-            let text = std::fs::read_to_string(root.join(format!("assets/hands/lang/{lang}.json"))).unwrap();
-            let mut k: Vec<String> =
-                text.lines().filter_map(|l| l.trim().strip_prefix('"')?.split('"').next().map(str::to_owned)).collect();
-            k.sort();
-            k
-        };
-        let (en, ar) = (keys("en_us"), keys("ar_sa"));
-        assert_eq!(en, ar);
+        let text = std::fs::read_to_string(root.join("assets/hands/lang/en_us.json")).unwrap();
+        let en: Vec<String> = text.lines().filter_map(|l| l.trim().strip_prefix('"')?.split('"').next().map(str::to_owned)).collect();
         let tree = shipped();
         let quoted =
             |field: &str| -> Vec<String> { tree.split(&format!("\"{field}\"")).skip(1).filter_map(|r| r.split('"').nth(1).map(str::to_owned)).collect() };
@@ -145,8 +140,8 @@ mod tests {
         for tag in quoted("tag") {
             assert!(en.contains(&format!("skills.perk.{tag}")), "no perk line for {tag}");
         }
-        for (key, _) in setting::ALL {
-            assert!(en.contains(&format!("hands.config.{key}")), "no line for the setting {key}");
+        for key in &setting::ALL[1..] {
+            assert!(en.contains(&key.spec(crate::MOD_ID).label), "no line for the setting {}", key.key);
         }
     }
 }
