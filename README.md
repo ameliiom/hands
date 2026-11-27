@@ -14,7 +14,7 @@ These four work for everyone, the host of a LAN world too, with nothing to earn.
 ## Comforts earned in Skills' trees
 With [Skills](https://github.com/ameliiom/skills), Hands adds nodes to Skills' own trees:
 - **Snack I / II** (Farming): when hunger drops below 14 (then 17), you eat the best plain food from your inventory. Rotten flesh, spider eyes, poisonous potatoes, pufferfish, raw chicken, golden apples, suspicious stew and chorus fruit are never eaten.
-- **Torch Hand** (Mining, and placing torches earns Mining experience): right-click a dark floor or wall with a pickaxe or shovel and a torch from your inventory goes there. Chests, doors and other blocks still open as always.
+- **Torch Hand** (Mining, and placing torches earns Mining experience): right-click a dark floor or wall with a pickaxe or shovel and a torch from your inventory goes there. Chests, doors and other blocks still open as always. (A torch you only hold, lighting the way without placing anything, is the separate mod [Lights](https://github.com/ameliiom/aura-lights-mod).)
 - **Quick Climb I / II** (Exploration): climbing a ladder or vine while looking up goes 1.5x (then 2x) as fast.
 - **Horse Whistle** (Exploration): blow a goat horn while sneaking and the last horse you rode comes to you, if it is tamed, nobody sits on it, and it is within 128 blocks in the same world.
 
